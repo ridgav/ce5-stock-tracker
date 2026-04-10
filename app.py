@@ -4,9 +4,10 @@ import random
 from scraper import get_variants, check_stock_fast
 from notifier import send
 
+# 🔗 Base URL (main entry)
 BASE_URL = "https://www.amazon.in/dp/B0FCMLCX46"
 
-# ✅ VALID LINKS INCLUDED
+# ✅ ONLY VALID VERIFIED LINKS
 KNOWN_VARIANTS = {
     "Black Infinity 8GB 128GB": "https://www.amazon.in/dp/B0FCMLCX46",
     "Nexus Blue 8GB 128GB": "https://www.amazon.in/dp/B0FC6XHHSV",
@@ -30,7 +31,11 @@ def save_state(data):
 
 
 def run():
+    print("🚀 BOT STARTED\n")
+
     state = load_state()
+
+    # ✅ Start with valid variants (fixes your issue)
     variants = KNOWN_VARIANTS.copy()
 
     last_full_scan = 0
@@ -38,37 +43,54 @@ def run():
     while True:
         now = time.time()
 
-        # 🔥 Detect hidden variants every 5 min
+        # 🔄 Try detecting hidden variants every 5 min
         if now - last_full_scan > 300:
             print("🔄 Scanning hidden variants...")
+
             try:
                 auto_variants = get_variants(BASE_URL)
-                variants.update(auto_variants)
-            except:
-                print("Variant scan failed, using known variants")
+
+                if auto_variants:
+                    variants.update(auto_variants)
+                    print(f"✅ Added {len(auto_variants)} detected variants")
+                else:
+                    print("⚠️ No hidden variants found")
+
+            except Exception as e:
+                print(f"❌ Scan error: {e}")
+
+            # 🧾 Show all variants
+            print("\n📦 Tracking variants:")
+            for name, url in variants.items():
+                print(f"{name} → {url}")
 
             last_full_scan = now
 
-        # ⚡ Check stock every 60 sec
+        # ⚡ Stock check
+        print("\n🔍 Checking stock...")
+
         for name, url in variants.items():
             try:
                 in_stock = check_stock_fast(url)
                 prev = state.get(url, False)
 
+                print(f"{name}: {'✅ IN STOCK' if in_stock else '❌ Out of stock'}")
+
+                # 🔔 Alert only when stock appears
                 if in_stock and not prev:
                     msg = f"🔥 IN STOCK:\n{name}\n{url}"
-                    print(msg)
                     send(msg)
+                    print("🚨 ALERT SENT!")
 
                 state[url] = in_stock
 
             except Exception as e:
-                print(f"Error: {e}")
+                print(f"❌ Error: {e}")
 
         save_state(state)
 
         sleep_time = 55 + random.randint(0, 15)
-        print(f"⏱ Sleeping {sleep_time} sec...\n")
+        print(f"\n⏱ Sleeping {sleep_time} sec...\n")
         time.sleep(sleep_time)
 
 
